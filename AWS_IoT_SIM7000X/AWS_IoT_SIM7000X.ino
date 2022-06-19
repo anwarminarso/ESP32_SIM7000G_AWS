@@ -448,7 +448,7 @@ void loop() {
 		doc["gps"]["day"] = day;
 		doc["gps"]["hour"] = hour;
 		doc["gps"]["minute"] = minute;
-		doc["gps"]["second"] = acc;
+		doc["gps"]["second"] = second;
 		
 		serializeJson(doc, jsonMessage);
 		if (publishMQTT(mqttPubTopic, jsonMessage.c_str(), jsonMessage.length())) {
