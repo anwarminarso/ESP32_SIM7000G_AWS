@@ -25,8 +25,25 @@
 #include "AWS_Certificate.h"
 
 
+//I2C Library
+// Built-in Library
+#include <Wire.h>
+
+
+//Adafruit Unitifed Library
+//https://www.arduino.cc/reference/en/libraries/adafruit-unified-sensor/
+#include <Adafruit_Sensor.h>
+
+//Adafruit BME680 Library
+//https://www.arduino.cc/reference/en/libraries/adafruit-bme680-library/
+#include <Adafruit_BME680.h>
+
+#define SEALEVELPRESSURE_HPA (1013.25)
+
+Adafruit_BME680 bme; // I2C
+
 #define GSM_PIN					""					//set GSM PIN Code, if any
-#define GPRS_APN				"yourAPN"		//SET TO YOUR APN, required
+#define GPRS_APN				"m2mautotronic"		//SET TO YOUR APN, required
 #define GPRS_USER				""					//SET TO YOUR GPRS USERNAME, if any
 #define GPRS_PASS				""					//SET TO YOUR GPRS PASSWORD, if any
 
@@ -37,12 +54,17 @@
 #define PIN_RX              26
 #define PWR_PIN             4
 
+
+
+
 const char* ThingName = "esp32_sim7000g";			// your thing name on AWS
-//const char* mqttServer = "XXXXXXXXXXXXXXX-ats.iot.us-east-1.amazonaws.com"; //you can get endpoint, on go to AWS IoT Web Site on Settings menu
-const char* mqttServer = "XXXXXXXXXXXXXXX.iot.us-east-1.amazonaws.com"; //Copy paste your endpoint and remove '-ats' URL
+//const char* mqttServer = "a3a7hex4sympda-ats.iot.us-east-1.amazonaws.com";
+const char* mqttServer = "a3a7hex4sympda.iot.us-east-1.amazonaws.com";
 const uint16_t mqttPort = 8883;						// default port AWS IoT
 const char* mqttPubTopic = "esp32/pub";				// your policy for publish
 const char* mqttSubTopic = "esp32/sub";				// your policy for subscribe
+
+#define PUBLISH_INTERVAL	3000 //every 3 seconds
 
 
 TinyGsm modem(SerialAT);
@@ -364,11 +386,28 @@ bool publishMQTT(const char* topic, const char* message, unsigned int messageLen
 	return true;
 }
 
+
+void initBME680() {
+	if (!bme.begin()) {
+		SerialMon.println("Could not find a valid BME680 sensor, check wiring!");
+		while (1);
+	}
+	// Set up oversampling and filter initialization
+	bme.setTemperatureOversampling(BME680_OS_8X);
+	bme.setHumidityOversampling(BME680_OS_2X);
+	bme.setPressureOversampling(BME680_OS_4X);
+	bme.setIIRFilterSize(BME680_FILTER_SIZE_3);
+	bme.setGasHeater(320, 150); // 320*C for 150 ms
+}
 void setup() {
 	SerialMon.begin(115200);
+	initBME680();
+	
 	modemPowerOn();
 	SerialAT.begin(UART_BAUD, SERIAL_8N1, PIN_RX, PIN_TX);
 	initGSM();
+	enableGPS();
+	
 	if (initFile()) {
 		writeFile((char*)&VERISIGN_CERT_CA_FILE_NAME, sizeof(VERISIGN_CERT_CA), (char*)&VERISIGN_CERT_CA, false);
 		writeFile((char*)&AWS_CERT_CA_FILE_NAME, sizeof(AWS_CERT_CA), (char*)&AWS_CERT_CA, false);
@@ -384,19 +423,32 @@ void loop() {
 	if (reconnectAWS(5)) {
 		DynamicJsonDocument doc(512);
 		String jsonMessage;
-		//// read your sensor here
-		//static int32_t temperature, humidity, pressure, gas;     // Variable to store readings
-		//BME680.getSensorData(temperature, humidity, pressure, gas); // Get most recent readings
-		//// write your sensor data to json document
-		//doc["temperature"] = temperature;
-		//doc["humidity"] = humidity;
-		//doc["pressure"] = pressure;
-		//doc["gas"] = gas;
-		
-		
-		doc["myVariable1"] = millis();
-		doc["myVariable2"] = "Test";
-		doc["myVariable3"] = 2.3;
+
+		if (!bme.performReading()) {
+			Serial.println("Failed to perform reading");
+		}
+		doc["bme"]["temperature"] = bme.temperature; // °C
+		doc["bme"]["humidity"] = bme.humidity;
+		doc["bme"]["pressure"] = bme.pressure / 100; //hpa
+		doc["bme"]["gas_resistance"] = bme.gas_resistance / 1000.0; //KOhms
+		doc["bme"]["altitude"] = bme.readAltitude(SEALEVELPRESSURE_HPA);
+
+		float lat, lon, speed, alt, acc;
+		int vsat, usat, year, month, day, hour, minute, second;
+		if (!modem.getGPS(&lat, &lon, &speed, &alt, &vsat, &usat, &acc, &year, &month, &day, &hour, &minute, &second)) {
+			Serial.println("Failed to get GPS Position");
+		}
+		doc["gps"]["latitude"] = lat;
+		doc["gps"]["longitute"] = lon;
+		doc["gps"]["altitude"] = alt;
+		doc["gps"]["speed"] = speed;
+		doc["gps"]["accuracy"] = acc;
+		doc["gps"]["year"] = year;
+		doc["gps"]["month"] = month;
+		doc["gps"]["day"] = day;
+		doc["gps"]["hour"] = hour;
+		doc["gps"]["minute"] = minute;
+		doc["gps"]["second"] = acc;
 		
 		serializeJson(doc, jsonMessage);
 		if (publishMQTT(mqttPubTopic, jsonMessage.c_str(), jsonMessage.length())) {
@@ -410,5 +462,5 @@ void loop() {
 		SerialMon.println("RESTART ESP");
 		ESP.restart();
 	}
-	delay(1000);
+	delay(PUBLISH_INTERVAL);
 }
