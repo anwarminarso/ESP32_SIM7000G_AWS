@@ -43,7 +43,7 @@
 Adafruit_BME680 bme; // I2C
 
 #define GSM_PIN					""					//set GSM PIN Code, if any
-#define GPRS_APN				"m2mautotronic"		//SET TO YOUR APN, required
+#define GPRS_APN				"yourAPN"			//SET TO YOUR APN, required
 #define GPRS_USER				""					//SET TO YOUR GPRS USERNAME, if any
 #define GPRS_PASS				""					//SET TO YOUR GPRS PASSWORD, if any
 
@@ -58,8 +58,8 @@ Adafruit_BME680 bme; // I2C
 
 
 const char* ThingName = "esp32_sim7000g";			// your thing name on AWS
-//const char* mqttServer = "a3a7hex4sympda-ats.iot.us-east-1.amazonaws.com";
-const char* mqttServer = "a3a7hex4sympda.iot.us-east-1.amazonaws.com";
+//const char* mqttServer = "xxxxxxxxxxxxx-ats.iot.us-east-1.amazonaws.com";
+const char* mqttServer = "xxxxxxxxxxxxx.iot.us-east-1.amazonaws.com";
 const uint16_t mqttPort = 8883;						// default port AWS IoT
 const char* mqttPubTopic = "esp32/pub";				// your policy for publish
 const char* mqttSubTopic = "esp32/sub";				// your policy for subscribe
